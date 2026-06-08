@@ -9,10 +9,13 @@ from dotenv import load_dotenv
 from rich.console import Console
 
 from skill_conflict_checker.analyzers.claude import ClaudeAnalyzer
+from skill_conflict_checker.analyzers.claude_cli import ClaudeCliAnalyzer
 from skill_conflict_checker.checker import ConflictChecker
 from skill_conflict_checker.collectors.claude_md import ClaudeMdCollector
+from skill_conflict_checker.collectors.hook import HookCollector
 from skill_conflict_checker.collectors.mcp import McpCollector
 from skill_conflict_checker.collectors.plugin import PluginSkillCollector
+from skill_conflict_checker.collectors.project_claude_md import ProjectClaudeMdCollector
 from skill_conflict_checker.collectors.skill import UserSkillCollector
 from skill_conflict_checker.reporters.console import ConsoleReporter
 from skill_conflict_checker.reporters.json_reporter import JsonReporter
@@ -59,7 +62,9 @@ def _load_installed(claude_dir: Path) -> dict:
     help="Output format.",
 )
 @click.option("--output", "-o", default=None, help="Output file path (for json/markdown formats).")
-@click.option("--model", default="claude-opus-4-8", show_default=True, help="Claude model to use.")
+@click.option("--model", default="claude-haiku-4-5-20251001", show_default=True, help="Claude model to use.")
+@click.option("--use-cli", is_flag=True, default=True, show_default=True, help="Use local claude CLI (subscription auth) instead of API key.")
+@click.option("--use-api", is_flag=True, default=False, help="Use Anthropic API key instead of claude CLI.")
 @click.option(
     "--no-skills", is_flag=True, default=False, help="Skip user skill collection."
 )
@@ -72,15 +77,31 @@ def _load_installed(claude_dir: Path) -> dict:
 @click.option(
     "--no-claude-md", is_flag=True, default=False, help="Skip CLAUDE.md collection."
 )
+@click.option(
+    "--no-hooks", is_flag=True, default=False, help="Skip lifecycle hook collection."
+)
+@click.option(
+    "--project-dir",
+    default=None,
+    help="Scan project CLAUDE.md files from this directory upward (default: current dir).",
+)
+@click.option(
+    "--no-project-claude-md", is_flag=True, default=False, help="Skip project CLAUDE.md collection."
+)
 def main(
     claude_dir: str,
     output_format: str,
     output: str | None,
     model: str,
+    use_cli: bool,
+    use_api: bool,
     no_skills: bool,
     no_plugins: bool,
     no_mcp: bool,
     no_claude_md: bool,
+    no_hooks: bool,
+    project_dir: str | None,
+    no_project_claude_md: bool,
 ) -> None:
     """Detect rule conflicts between Claude Code skills, plugins, and MCP configurations."""
     claude_path = Path(claude_dir)
@@ -99,6 +120,13 @@ def main(
         collectors.append(McpCollector(mcp_servers))
     if not no_claude_md:
         collectors.append(ClaudeMdCollector(claude_path))
+    if not no_hooks:
+        hooks = settings.get("hooks", {})
+        if hooks:
+            collectors.append(HookCollector(hooks))
+    if not no_project_claude_md:
+        start = Path(project_dir) if project_dir else Path.cwd()
+        collectors.append(ProjectClaudeMdCollector(start))
 
     if not collectors:
         click.echo("No collectors enabled. Use --help for options.", err=True)
@@ -116,7 +144,10 @@ def main(
             sys.exit(1)
         reporters.append(MarkdownReporter(output))
 
-    analyzer = ClaudeAnalyzer(model=model)
+    if use_api:
+        analyzer = ClaudeAnalyzer(model=model)
+    else:
+        analyzer = ClaudeCliAnalyzer(model=model)
     checker = ConflictChecker(collectors=collectors, analyzer=analyzer, reporters=reporters)
 
     try:
