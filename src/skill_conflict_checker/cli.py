@@ -37,13 +37,16 @@ def _load_settings(claude_dir: Path) -> dict:
 
 
 def _load_installed(claude_dir: Path) -> dict:
-    installed_path = claude_dir / "installed-plugins.json"
-    if not installed_path.exists():
-        return {}
-    try:
-        return json.loads(installed_path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
+    for candidate in (
+        claude_dir / "plugins" / "installed_plugins.json",
+        claude_dir / "installed-plugins.json",
+    ):
+        if candidate.exists():
+            try:
+                return json.loads(candidate.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                return {}
+    return {}
 
 
 @click.command()
