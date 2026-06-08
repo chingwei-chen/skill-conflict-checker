@@ -65,7 +65,7 @@ def _load_installed(claude_dir: Path) -> dict:
     help="Output format.",
 )
 @click.option("--output", "-o", default=None, help="Output file path (for json/markdown formats).")
-@click.option("--model", default="claude-haiku-4-5-20251001", show_default=True, help="Claude model to use.")
+@click.option("--model", default="claude-haiku-4-5-20251001", show_default=True, help="Claude model to use. Max allowed: claude-sonnet-4-6.")
 @click.option("--use-cli", is_flag=True, default=True, show_default=True, help="Use local claude CLI (subscription auth) instead of API key.")
 @click.option("--use-api", is_flag=True, default=False, help="Use Anthropic API key instead of claude CLI.")
 @click.option(
@@ -107,6 +107,11 @@ def main(
     no_project_claude_md: bool,
 ) -> None:
     """Detect rule conflicts between Claude Code skills, plugins, and MCP configurations."""
+    _BLOCKED_MODELS = ("opus",)
+    if any(b in model for b in _BLOCKED_MODELS):
+        click.echo(f"Error: model '{model}' not allowed. Max: claude-sonnet-4-6.", err=True)
+        sys.exit(2)
+
     claude_path = Path(claude_dir)
     settings = _load_settings(claude_path)
     installed = _load_installed(claude_path)

@@ -87,11 +87,12 @@ class ClaudeCliAnalyzer:
                 "--model", self._model,
                 "--system-prompt", _SYSTEM_PROMPT,
                 "--output-format", "text",
-                user_message,
+                "--input-format", "text",
             ],
+            input=user_message,
             capture_output=True,
             text=True,
-            timeout=180,
+            timeout=300,
         )
         if result.returncode != 0:
             raise RuntimeError(f"claude CLI failed: {result.stderr.strip()}")
